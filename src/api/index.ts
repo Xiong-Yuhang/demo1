@@ -1,5 +1,18 @@
 import axios from "./axios.js";
-import type { LoginParams, LoginResponse, LoginSuccessData } from "./index.d";
+import type {
+  FamilyListData,
+  FamilyListResponse,
+  GetFamilyListParams,
+  GetGroupListParams,
+  GetThingListParams,
+  GroupListData,
+  GroupListResponse,
+  LoginParams,
+  LoginResponse,
+  LoginSuccessData,
+  ThingListData,
+  ThingListResponse,
+} from "./index.d";
 
 // 登录接口
 export const userLogin = async (
@@ -45,4 +58,65 @@ export const userLogin = async (
   }
 
   return successData;
+};
+
+// 获取设备列表接口
+export const getThingList = async (
+  params: GetThingListParams = {},
+): Promise<ThingListData> => {
+  // 设置默认参数
+  const requestParams: GetThingListParams = {
+    lang: params.lang || "en",
+    num: params.num || 30,
+    beginIndex: params.beginIndex || 0,
+  };
+
+  // 如果有家庭ID，则添加
+  if (params.familyid) {
+    requestParams.familyid = params.familyid;
+  }
+
+  // 发送GET请求
+  const response = await axios.get<ThingListResponse>("/v2/device/thing", {
+    params: requestParams,
+  });
+
+  console.log("设备列表响应:", response);
+  return response.data as ThingListData;
+};
+
+// 获取设备群组列表接口
+export const getGroupList = async (
+  params: GetGroupListParams = {},
+): Promise<GroupListData> => {
+  // 设置默认参数
+  const requestParams: GetGroupListParams = {
+    lang: params.lang || "en",
+  };
+
+  // 发送GET请求
+  const response = await axios.get<GroupListResponse>("/v2/device/group", {
+    params: requestParams,
+  });
+
+  console.log("群组列表响应:", response);
+  return response.data as GroupListData;
+};
+
+// 获取家庭列表接口
+export const getFamilyList = async (
+  params: GetFamilyListParams = {},
+): Promise<FamilyListData> => {
+  // 设置默认参数
+  const requestParams: GetFamilyListParams = {
+    lang: params.lang || "en",
+  };
+
+  // 发送GET请求
+  const response = await axios.get<FamilyListResponse>("/v2/family", {
+    params: requestParams,
+  });
+
+  console.log("家庭列表响应:", response);
+  return response.data as FamilyListData;
 };
