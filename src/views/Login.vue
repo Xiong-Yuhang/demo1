@@ -33,6 +33,8 @@ const login = async () => {
 
   const result = await userLogin(params);
   console.log("登录成功:", result);
+  tel.value = "";
+  password.value = "";
 };
 </script>
 

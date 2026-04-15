@@ -1,6 +1,7 @@
 import axios from "./axios.js";
 import type { LoginParams, LoginResponse, LoginSuccessData } from "./index.d";
 
+// 登录接口
 export const userLogin = async (
   params: LoginParams,
 ): Promise<LoginSuccessData> => {
@@ -24,9 +25,9 @@ export const userLogin = async (
   }
 
   // 发送登录请求
-    const response = await axios.post<LoginResponse>("/v2/user/login", params);
-    
-    console.log("登录响应数据:", response);
+  const response = await axios.post<LoginResponse>("/v2/user/login", params);
+
+  console.log("登录响应数据:", response);
 
   // 登录成功，返回用户数据
   const successData = response.data as LoginSuccessData;
