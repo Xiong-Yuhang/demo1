@@ -20,6 +20,7 @@
 import { ref } from "vue";
 import { userLogin } from "../api/index";
 import type { LoginParams } from "../api/index.d";
+import router from "../router/index.ts";
 
 const tel = ref("");
 const password = ref("");
@@ -35,6 +36,7 @@ const login = async () => {
   console.log("登录成功:", result);
   tel.value = "";
   password.value = "";
+  router.push("/home");
 };
 </script>
 
