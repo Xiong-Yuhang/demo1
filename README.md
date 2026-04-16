@@ -14,18 +14,18 @@ WebSocket：实时通信
 
 # 项目结构
 
-src/
-├── api/ # API接口层
-│ ├── axios.ts # Axios实例配置和拦截器
-│ ├── index.ts # API函数定义
-│ ├── index.d.ts # 类型定义
-│ └── websocket.ts # WebSocket管理类
-├── components/ # 公共组件
-│ └── DeviceCard.vue # 设备卡片组件
-├── router/ # 路由配置
-│ └── index.ts
-├── views/ # 页面组件
-│ ├── Login.vue # 登录页面
-│ └── Home.vue # 主页
-├── App.vue # 根组件
+src/  
+├── api/ # API接口层  
+│ ├── axios.ts # Axios实例配置和拦截器  
+│ ├── index.ts # API函数定义  
+│ ├── index.d.ts # 类型定义  
+│ └── websocket.ts # WebSocket管理类  
+├── components/ # 公共组件  
+│ └── DeviceCard.vue # 设备卡片组件  
+├── router/ # 路由配置  
+│ └── index.ts  
+├── views/ # 页面组件  
+│ ├── Login.vue # 登录页面  
+│ └── Home.vue # 主页  
+├── App.vue # 根组件  
 └── main.ts # 应用入口
