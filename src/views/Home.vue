@@ -29,196 +29,15 @@
           <div class="stat-label">设备总数</div>
         </div>
       </div>
-
-      <!-- 设备列表 -->
-      <!-- <div v-if="!apiError" class="device-list">
-        <h3>设备列表</h3>
-        <div v-if="thingList && thingList.length > 0">
-          <div
-            v-for="(thing, index) in thingList"
-            :key="index"
-            class="device-item"
-          >
-            <div class="device-header">
-              <div class="device-type">
-                <van-tag v-if="thing.itemType === 1" type="primary"
-                  >我的设备</van-tag
-                >
-                <van-tag v-else-if="thing.itemType === 2" type="success"
-                  >分享设备</van-tag
-                >
-                <van-tag v-else type="warning">设备群组</van-tag>
-              </div>
-              <div class="device-status">
-                <span
-                  v-if="isDevice(thing)"
-                  class="status-dot"
-                  :class="{
-                    online: (thing.itemData as DeviceInfo).online,
-                    offline: !(thing.itemData as DeviceInfo).online,
-                  }"
-                ></span>
-                <span v-if="isDevice(thing)">
-                  {{ (thing.itemData as DeviceInfo).online ? "在线" : "离线" }}
-                </span>
-                <span v-else>群组</span>
-              </div>
-            </div>
-
-            <div class="device-info">
-              <div class="device-name">{{ getThingName(thing) }}</div>
-
-              <div v-if="isDevice(thing)" class="device-details">
-                <div
-                  class="detail-item"
-                  v-if="(thing.itemData as DeviceInfo).brandName"
-                >
-                  <span class="label">品牌:</span>
-                  <span class="value">{{
-                    (thing.itemData as DeviceInfo).brandName
-                  }}</span>
-                </div>
-                <div
-                  class="detail-item"
-                  v-if="(thing.itemData as DeviceInfo).extra?.model"
-                >
-                  <span class="label">型号:</span>
-                  <span class="value">{{
-                    (thing.itemData as DeviceInfo).extra.model
-                  }}</span>
-                </div>
-                <div
-                  class="detail-item"
-                  v-if="(thing.itemData as DeviceInfo).productModel"
-                >
-                  <span class="label">产品型号:</span>
-                  <span class="value">{{
-                    (thing.itemData as DeviceInfo).productModel
-                  }}</span>
-                </div>
-                <div
-                  v-if="(thing.itemData as DeviceInfo).sharedBy"
-                  class="detail-item shared-info"
-                >
-                  <span class="label">分享自:</span>
-                  <span class="value">
-                    {{
-                      (thing.itemData as DeviceInfo).sharedBy.nickname ||
-                      (thing.itemData as DeviceInfo).sharedBy.email ||
-                      (thing.itemData as DeviceInfo).sharedBy.phoneNumber ||
-                      "未知用户"
-                    }}
-                  </span>
-                </div>
-              </div>
-
-              <div v-else class="device-details">
-                <div
-                  class="detail-item"
-                  v-if="(thing.itemData as GroupInfo).mainDeviceId"
-                >
-                  <span class="label">主设备ID:</span>
-                  <span class="value">{{
-                    (thing.itemData as GroupInfo).mainDeviceId
-                  }}</span>
-                </div>
-                <div
-                  v-if="(thing.itemData as GroupInfo).family"
-                  class="detail-item"
-                >
-                  <span class="label">排序号:</span>
-                  <span class="value">{{
-                    (thing.itemData as GroupInfo).family.index
-                  }}</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="device-actions">
-              <van-button
-                v-if="isDevice(thing)"
-                size="small"
-                :type="
-                  (thing.itemData as DeviceInfo).online ? 'primary' : 'default'
-                "
-                :disabled="!(thing.itemData as DeviceInfo).online"
-              >
-                {{ (thing.itemData as DeviceInfo).online ? "控制" : "离线" }}
-              </van-button>
-              <van-button v-else size="small" type="primary"
-                >查看群组</van-button
-              >
-
-              <van-button
-                v-if="
-                  isDevice(thing) &&
-                  (thing.itemData as DeviceInfo).shareTo &&
-                  (thing.itemData as DeviceInfo).shareTo!.length > 0
-                "
-                size="small"
-                type="default"
-                style="margin-left: 8px"
-              >
-                已分享
-              </van-button>
-            </div>
-          </div>
-        </div>
-        <div v-else class="empty-state">
-          <p>暂无设备</p>
-          <van-button @click="refreshDeviceList" type="primary" size="small"
-            >刷新</van-button
-          >
-        </div>
-      </div> -->
-
-      <!-- 分页控制 -->
-      <!-- <div
-        v-if="!apiError && thingListData && totalDevices > pageSize"
-        class="pagination"
-      >
-        <div class="pagination-info">
-          共 {{ totalDevices }} 个设备，第 {{ currentPage }} 页
-        </div>
-        <van-pagination
-          v-model="currentPage"
-          :total-items="totalDevices"
-          :items-per-page="pageSize"
-          :show-page-size="5"
-          @change="handlePageChange"
-        />
-      </div> -->
-
-      <!-- 控制面板 -->
-      <!-- <div v-if="!apiError" class="control-panel">
-        <div class="control-buttons">
-          <van-button
-            @click="refreshDeviceList"
-            type="primary"
-            icon="replay"
-            :loading="loading"
-          >
-            刷新列表
-          </van-button>
-          <van-button @click="logout" type="default" icon="logout">
-            退出登录
-          </van-button>
-        </div>
-      </div> -->
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from "vue";
+import { ref, onMounted, computed } from "vue";
 import { useRouter } from "vue-router";
 import { getThingList, getFamilyList } from "../api/index";
-import type {
-  ThingListItem,
-  DeviceInfo,
-  GroupInfo,
-  FamilyInfo,
-} from "../api/index.d";
+import type { ThingListItem, DeviceInfo, FamilyInfo } from "../api/index.d";
 import { showToast, showSuccessToast, showFailToast } from "vant";
 
 const router = useRouter();
@@ -227,7 +46,7 @@ const router = useRouter();
 const loading = ref(false);
 const apiError = ref("");
 const thingListData = ref<any>(null);
-const currentPage = ref(1);
+const familyList = ref<FamilyInfo[]>([]);
 const currentFamilyId = ref<string>("");
 const pageSize = 5; // 每页显示设备数量
 
@@ -265,20 +84,44 @@ const getThingName = (thing: ThingListItem) => {
   }
 };
 
+// 加载家庭列表
+const loadFamilyList = async () => {
+  try {
+    const data = await getFamilyList({ lang: "cn" });
+    familyList.value = data.familyList;
+
+    if (data.familyList.length > 0) {
+      // 使用当前家庭ID，如果没有则使用第一个家庭
+      currentFamilyId.value = data.currentFamilyId || data.familyList[0].id;
+      console.log("当前家庭ID:", currentFamilyId.value);
+      return true;
+    } else {
+      apiError.value = "没有找到家庭信息";
+      return false;
+    }
+  } catch (err: any) {
+    console.error("加载家庭列表失败:", err);
+    apiError.value = "加载家庭列表失败: " + (err.message || "未知错误");
+    return false;
+  }
+};
+
 // 加载设备列表
 const loadDeviceList = async () => {
+  if (!currentFamilyId.value) {
+    showFailToast("请先选择家庭");
+    return;
+  }
+
   loading.value = true;
   apiError.value = "";
 
   try {
-    // 计算起始索引
-    const beginIndex = (currentPage.value - 1) * pageSize;
-
     // 构建请求参数
     const params = {
       lang: "cn",
+      familyid: currentFamilyId.value,
       num: pageSize,
-      beginIndex: beginIndex,
     };
 
     const data = await getThingList(params);
@@ -289,7 +132,7 @@ const loadDeviceList = async () => {
     if (data.thingList && data.thingList.length > 0) {
       showSuccessToast(`加载成功，共 ${data.total} 个设备`);
     } else {
-      showToast("暂无设备");
+      showToast("该家庭暂无设备");
     }
   } catch (err: any) {
     console.error("加载设备列表失败:", err);
@@ -320,25 +163,6 @@ const loadDeviceList = async () => {
   }
 };
 
-// 处理分页变化
-const handlePageChange = (page: number) => {
-  console.log("切换到第", page, "页");
-  currentPage.value = page;
-  loadDeviceList();
-};
-
-// 刷新设备列表
-const refreshDeviceList = () => {
-  // 如果是第一页，直接重新加载
-  if (currentPage.value === 1) {
-    loadDeviceList();
-  } else {
-    // 否则回到第一页
-    currentPage.value = 1;
-    loadDeviceList();
-  }
-};
-
 // 退出登录
 const logout = () => {
   // 清除本地存储的token
@@ -351,6 +175,24 @@ const logout = () => {
   router.push("/login");
 };
 
+// 初始化加载
+const initLoad = async () => {
+  loading.value = true;
+  try {
+    // 先加载家庭列表
+    const familyLoaded = await loadFamilyList();
+
+    if (familyLoaded) {
+      // 再加载设备列表
+      await loadDeviceList();
+    }
+  } catch (err) {
+    console.error("初始化加载失败:", err);
+  } finally {
+    loading.value = false;
+  }
+};
+
 // 组件挂载时加载数据
 onMounted(() => {
   // 检查是否已登录
@@ -360,8 +202,8 @@ onMounted(() => {
     return;
   }
 
-  // 首次加载
-  loadDeviceList();
+  // 初始化加载
+  initLoad();
 });
 </script>
 

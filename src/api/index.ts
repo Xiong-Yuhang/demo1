@@ -68,7 +68,6 @@ export const getThingList = async (
   const requestParams: GetThingListParams = {
     lang: params.lang || "en",
     num: params.num || 30,
-    beginIndex: params.beginIndex || 0,
   };
 
   // 如果有家庭ID，则添加

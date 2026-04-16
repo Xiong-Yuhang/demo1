@@ -1,5 +1,4 @@
 import axios from "axios";
-import router from "../router/index.ts";
 
 axios.defaults.baseURL = "/api";
 axios.defaults.headers.post["Content-Type"] = "application/json"; // 告诉浏览器后端返回的数据格式是 json 格式
