@@ -4,12 +4,12 @@
 
 # 技术栈
 
-Vue 3：前端框架
-TypeScript：类型安全的JavaScript超集
-Vant：移动端UI组件库
-Vite：前端构建工具
-Vue Router：路由管理
-Axios：HTTP客户端
+Vue 3：前端框架  
+TypeScript：类型安全的JavaScript超集  
+Vant：移动端UI组件库  
+Vite：前端构建工具  
+Vue Router：路由管理  
+Axios：HTTP客户端  
 WebSocket：实时通信
 
 # 项目结构
