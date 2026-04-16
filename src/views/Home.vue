@@ -3,7 +3,20 @@
     <!-- 顶部标题栏 -->
     <div class="top">
       <div class="title">设备列表</div>
-      <div class="user-info" v-if="userName">欢迎，{{ userName }}</div>
+      <div class="user-info">
+        <span v-if="userName">欢迎，{{ userName }}</span>
+      </div>
+    </div>
+
+    <!-- WebSocket连接状态 -->
+    <div v-if="wsStatus !== 'connected'" class="ws-warning">
+      <van-tag v-if="wsStatus === 'connecting'" type="primary"
+        >正在连接WebSocket...</van-tag
+      >
+      <van-tag v-else-if="wsStatus === 'error'" type="danger"
+        >WebSocket连接失败</van-tag
+      >
+      <van-tag v-else type="warning">WebSocket未连接</van-tag>
     </div>
 
     <!-- 接口错误提示 -->
@@ -29,14 +42,39 @@
           <div class="stat-label">设备总数</div>
         </div>
       </div>
+
+      <!-- 设备卡片 -->
+      <div v-if="fourChannelDevice" class="device-card-container">
+        <DeviceCard
+          :device="fourChannelDevice"
+          @update:device="handleDeviceUpdate"
+          @control="handleDeviceControl"
+        />
+      </div>
+
+      <!-- 无设备提示 -->
+      <div v-else-if="!loading && !fourChannelDevice" class="empty-state">
+        <van-empty image="search" description="未找到四通道设备">
+          <van-button
+            round
+            type="primary"
+            @click="loadDeviceList"
+            :loading="loading"
+          >
+            刷新设备列表
+          </van-button>
+        </van-empty>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted, computed, onUnmounted, watch } from "vue";
 import { useRouter } from "vue-router";
 import { getThingList, getFamilyList } from "../api/index";
+import { wsManager, WebSocketStatus } from "../api/websocket";
+import DeviceCard from "../components/DeviceCard.vue";
 import type { ThingListItem, DeviceInfo, FamilyInfo } from "../api/index.d";
 import { showToast, showSuccessToast, showFailToast } from "vant";
 
@@ -49,6 +87,7 @@ const thingListData = ref<any>(null);
 const familyList = ref<FamilyInfo[]>([]);
 const currentFamilyId = ref<string>("");
 const pageSize = 5; // 每页显示设备数量
+const wsStatus = ref<WebSocketStatus>(WebSocketStatus.DISCONNECTED);
 
 // 从本地存储获取用户名
 const userName = computed(() => {
@@ -67,21 +106,113 @@ const userName = computed(() => {
 // 计算属性
 const thingList = computed(() => thingListData.value?.thingList || []);
 const totalDevices = computed(() => thingListData.value?.total || 0);
+// 四通道设备
+const fourChannelDevice = computed(() => {
+  if (!thingListData.value?.thingList) return null;
 
-// 判断是否为设备（非群组）
-const isDevice = (
-  thing: ThingListItem,
-): thing is ThingListItem & { itemData: DeviceInfo } => {
-  return thing.itemType === 1 || thing.itemType === 2;
+  const deviceItem = thingListData.value.thingList.find(
+    (item: ThingListItem) => {
+      if (item.itemType === 1 || item.itemType === 2) {
+        const device = item.itemData as DeviceInfo;
+        return device.extra?.uiid === 4; // UIID4 是四通道插座
+      }
+      return false;
+    },
+  );
+
+  return deviceItem ? (deviceItem.itemData as DeviceInfo) : null;
+});
+
+// 初始化WebSocket
+const initWebSocket = async () => {
+  if (!fourChannelDevice.value) {
+    console.log("没有找到四通道设备，等待设备加载...");
+    return;
+  }
+
+  wsStatus.value = WebSocketStatus.CONNECTING;
+
+  try {
+    const connected = await wsManager.connect();
+    if (connected) {
+      showSuccessToast("WebSocket连接成功");
+
+      // 查询设备初始状态
+      if (fourChannelDevice.value) {
+        setTimeout(() => {
+          queryDeviceStatus(fourChannelDevice.value!.deviceid);
+        }, 1000);
+      }
+    } else {
+      wsStatus.value = WebSocketStatus.ERROR;
+      showFailToast("WebSocket连接失败");
+    }
+  } catch (error) {
+    console.error("WebSocket连接失败:", error);
+    wsStatus.value = WebSocketStatus.ERROR;
+    showFailToast("WebSocket连接失败");
+  }
 };
 
-// 获取设备名称
-const getThingName = (thing: ThingListItem) => {
-  if (isDevice(thing)) {
-    return thing.itemData.name || `设备${thing.index}`;
-  } else {
-    return thing.itemData.name || `群组${thing.index}`;
+// 查询设备状态
+const queryDeviceStatus = async (deviceId: string) => {
+  if (!deviceId || wsManager.getStatus() !== WebSocketStatus.CONNECTED) {
+    return;
   }
+
+  try {
+    const params = await wsManager.queryDeviceStatus(deviceId, [
+      "switches",
+      "configure",
+      "pulses",
+    ]);
+    console.log("查询到的设备状态:", params);
+
+    if (params && fourChannelDevice.value) {
+      // 更新设备状态
+      handleDeviceUpdate({
+        ...fourChannelDevice.value,
+        params: {
+          ...fourChannelDevice.value.params,
+          ...params,
+        },
+      });
+    }
+  } catch (error) {
+    console.error("查询设备状态失败:", error);
+  }
+};
+
+// 处理设备状态更新
+const handleDeviceUpdate = (device: DeviceInfo) => {
+  if (!thingListData.value?.thingList) return;
+
+  // 更新设备列表中的设备状态
+  const updatedThingList = thingListData.value.thingList.map(
+    (item: ThingListItem) => {
+      if (
+        (item.itemType === 1 || item.itemType === 2) &&
+        (item.itemData as DeviceInfo).deviceid === device.deviceid
+      ) {
+        return {
+          ...item,
+          itemData: device,
+        };
+      }
+      return item;
+    },
+  );
+
+  thingListData.value = {
+    ...thingListData.value,
+    thingList: updatedThingList,
+  };
+};
+
+// 处理设备控制
+const handleDeviceControl = (deviceId: string, params: any) => {
+  console.log("设备控制指令:", deviceId, params);
+  // 这里可以添加额外的控制逻辑
 };
 
 // 加载家庭列表
@@ -121,7 +252,7 @@ const loadDeviceList = async () => {
     const params = {
       lang: "cn",
       familyid: currentFamilyId.value,
-      num: pageSize,
+      num: 0, // 获取所有设备
     };
 
     const data = await getThingList(params);
@@ -131,6 +262,15 @@ const loadDeviceList = async () => {
 
     if (data.thingList && data.thingList.length > 0) {
       showSuccessToast(`加载成功，共 ${data.total} 个设备`);
+
+      // 找到四通道设备后，初始化WebSocket连接
+      if (fourChannelDevice.value) {
+        console.log(
+          "找到四通道设备，初始化WebSocket连接:",
+          fourChannelDevice.value.deviceid,
+        );
+        initWebSocket();
+      }
     } else {
       showToast("该家庭暂无设备");
     }
@@ -171,6 +311,9 @@ const logout = () => {
   localStorage.removeItem("user_region");
   localStorage.removeItem("user_info");
 
+  // 断开WebSocket连接
+  wsManager.disconnect();
+
   // 跳转到登录页
   router.push("/login");
 };
@@ -193,6 +336,11 @@ const initLoad = async () => {
   }
 };
 
+// 监听WebSocket状态变化
+wsManager.onStatusChange = (status: WebSocketStatus) => {
+  wsStatus.value = status;
+};
+
 // 组件挂载时加载数据
 onMounted(() => {
   // 检查是否已登录
@@ -204,6 +352,43 @@ onMounted(() => {
 
   // 初始化加载
   initLoad();
+});
+
+// 在 Home.vue 的 script 部分添加
+// 监听WebSocket连接状态
+watch(wsStatus, (newStatus) => {
+  console.log("WebSocket状态变化:", newStatus);
+  if (newStatus === WebSocketStatus.CONNECTED) {
+    showSuccessToast("WebSocket连接成功");
+  } else if (newStatus === WebSocketStatus.ERROR) {
+    showFailToast("WebSocket连接失败");
+  } else if (newStatus === WebSocketStatus.DISCONNECTED) {
+    showToast("WebSocket已断开");
+  }
+});
+
+// 添加一个定时检查连接状态的函数
+const checkConnection = () => {
+  if (
+    wsStatus.value === WebSocketStatus.DISCONNECTED ||
+    wsStatus.value === WebSocketStatus.ERROR
+  ) {
+    console.log("检测到连接断开，尝试重连...");
+    initWebSocket();
+  }
+};
+
+// 每30秒检查一次连接状态
+onMounted(() => {
+  const connectionChecker = setInterval(checkConnection, 30000);
+  onUnmounted(() => {
+    clearInterval(connectionChecker);
+  });
+});
+
+// 组件卸载时清理
+onUnmounted(() => {
+  wsManager.disconnect();
 });
 </script>
 
@@ -228,8 +413,31 @@ onMounted(() => {
     }
 
     .user-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
       font-size: 14px;
       color: #666;
+
+      .ws-status {
+        display: flex;
+        align-items: center;
+
+        .van-tag {
+          cursor: pointer;
+          user-select: none;
+        }
+      }
+    }
+  }
+
+  .ws-warning {
+    margin-bottom: 15px;
+    text-align: center;
+
+    .van-tag {
+      font-size: 12px;
+      padding: 4px 8px;
     }
   }
 
@@ -289,11 +497,23 @@ onMounted(() => {
       }
     }
 
-    .device-list {
+    .device-card-container {
+      margin-bottom: 20px;
+    }
+
+    .empty-state {
+      background: white;
+      border-radius: 12px;
+      padding: 40px 20px;
+      text-align: center;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    .control-panel {
       background: white;
       border-radius: 12px;
       padding: 20px;
-      margin-bottom: 20px;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 
       h3 {
@@ -303,135 +523,6 @@ onMounted(() => {
         border-left: 4px solid #1989fa;
         padding-left: 12px;
       }
-
-      .device-item {
-        padding: 16px;
-        margin-bottom: 16px;
-        border: 1px solid #f0f0f0;
-        border-radius: 8px;
-        transition: all 0.3s;
-
-        &:hover {
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        }
-
-        .device-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 12px;
-
-          .device-type {
-            .van-tag {
-              font-size: 12px;
-              padding: 2px 6px;
-            }
-          }
-
-          .device-status {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 12px;
-            color: #666;
-
-            .status-dot {
-              width: 8px;
-              height: 8px;
-              border-radius: 50%;
-
-              &.online {
-                background-color: #52c41a;
-              }
-
-              &.offline {
-                background-color: #f5222d;
-              }
-            }
-          }
-        }
-
-        .device-info {
-          .device-name {
-            font-size: 16px;
-            font-weight: 500;
-            color: #333;
-            margin-bottom: 10px;
-          }
-
-          .device-details {
-            .detail-item {
-              display: flex;
-              margin-bottom: 6px;
-              font-size: 13px;
-
-              .label {
-                color: #666;
-                min-width: 60px;
-              }
-
-              .value {
-                color: #333;
-                font-weight: 500;
-                word-break: break-word;
-              }
-
-              &.shared-info {
-                background-color: #f6ffed;
-                padding: 4px 8px;
-                border-radius: 4px;
-                border-left: 3px solid #52c41a;
-              }
-            }
-          }
-        }
-
-        .device-actions {
-          display: flex;
-          justify-content: flex-end;
-          margin-top: 12px;
-
-          .van-button {
-            min-width: 80px;
-          }
-        }
-      }
-
-      .empty-state {
-        text-align: center;
-        padding: 40px 20px;
-
-        p {
-          margin-bottom: 15px;
-          color: #999;
-        }
-      }
-    }
-
-    .pagination {
-      background: white;
-      border-radius: 12px;
-      padding: 20px;
-      margin-bottom: 20px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-
-      .pagination-info {
-        text-align: center;
-        margin-bottom: 15px;
-        color: #666;
-        font-size: 14px;
-      }
-
-      .van-pagination {
-        justify-content: center;
-      }
-    }
-
-    .control-panel {
-      background: white;
-      border-radius: 12px;
-      padding: 20px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 
       .control-buttons {
         display: flex;
