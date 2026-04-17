@@ -1,4 +1,4 @@
-import { showFailToast, showToast } from "vant";
+import { showFailToast } from "vant";
 
 // WebSocket 连接状态枚举
 export enum WebSocketStatus {
@@ -169,7 +169,6 @@ class WebSocketManager {
       const handshakeSuccess = await this.sendHandshake();
       if (handshakeSuccess) {
         this.updateStatus(WebSocketStatus.CONNECTED);
-        showToast("WebSocket连接成功");
       } else {
         throw new Error("握手认证失败");
       }
@@ -328,12 +327,20 @@ class WebSocketManager {
     }
   }
 
-  // 处理update消息（设备状态更新）
+  // 处理update消息
   private handleUpdateMessage(message: WebSocketMessage) {
-    if (message.error === 0 && message.deviceid && message.params) {
+    // 服务器推送的状态更新
+    if (message.deviceid && message.params) {
+      // 获取这个设备的所有回调
       const callbacks = this.deviceUpdateCallbacks.get(message.deviceid) || [];
-      callbacks.forEach((callback) => {
-        callback(message.deviceid!, message.params);
+
+      // 执行所有回调
+      callbacks.forEach((callback, index) => {
+        try {
+          callback(message.deviceid!, message.params);
+        } catch (error) {
+          console.error(`回调 ${index + 1} 执行失败:`, error);
+        }
       });
     }
   }
