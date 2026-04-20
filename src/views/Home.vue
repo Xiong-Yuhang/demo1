@@ -70,7 +70,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, onUnmounted, watch } from "vue";
+import { ref, onMounted, computed, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import { getThingList, getFamilyList } from "../api/index";
 import { wsManager, WebSocketStatus } from "../api/websocket";
@@ -86,7 +86,6 @@ const apiError = ref("");
 const thingListData = ref<any>(null);
 const familyList = ref<FamilyInfo[]>([]);
 const currentFamilyId = ref<string>("");
-const pageSize = 5; // 每页显示设备数量
 const wsStatus = ref<WebSocketStatus>(WebSocketStatus.DISCONNECTED);
 
 // 从本地存储获取用户名
@@ -104,7 +103,6 @@ const userName = computed(() => {
 });
 
 // 计算属性
-const thingList = computed(() => thingListData.value?.thingList || []);
 const totalDevices = computed(() => thingListData.value?.total || 0);
 // 四通道设备
 const fourChannelDevice = computed(() => {
@@ -135,8 +133,6 @@ const initWebSocket = async () => {
   try {
     const connected = await wsManager.connect();
     if (connected) {
-      showSuccessToast("WebSocket连接成功");
-
       // 查询设备初始状态
       if (fourChannelDevice.value) {
         setTimeout(() => {
@@ -185,7 +181,9 @@ const queryDeviceStatus = async (deviceId: string) => {
 
 // 处理设备状态更新
 const handleDeviceUpdate = (device: DeviceInfo) => {
-  if (!thingListData.value?.thingList) return;
+  if (!thingListData.value?.thingList) {
+    return;
+  }
 
   // 更新设备列表中的设备状态
   const updatedThingList = thingListData.value.thingList.map(
@@ -354,38 +352,6 @@ onMounted(() => {
   initLoad();
 });
 
-// 在 Home.vue 的 script 部分添加
-// 监听WebSocket连接状态
-watch(wsStatus, (newStatus) => {
-  console.log("WebSocket状态变化:", newStatus);
-  if (newStatus === WebSocketStatus.CONNECTED) {
-    showSuccessToast("WebSocket连接成功");
-  } else if (newStatus === WebSocketStatus.ERROR) {
-    showFailToast("WebSocket连接失败");
-  } else if (newStatus === WebSocketStatus.DISCONNECTED) {
-    showToast("WebSocket已断开");
-  }
-});
-
-// 添加一个定时检查连接状态的函数
-const checkConnection = () => {
-  if (
-    wsStatus.value === WebSocketStatus.DISCONNECTED ||
-    wsStatus.value === WebSocketStatus.ERROR
-  ) {
-    console.log("检测到连接断开，尝试重连...");
-    initWebSocket();
-  }
-};
-
-// 每30秒检查一次连接状态
-onMounted(() => {
-  const connectionChecker = setInterval(checkConnection, 30000);
-  onUnmounted(() => {
-    clearInterval(connectionChecker);
-  });
-});
-
 // 组件卸载时清理
 onUnmounted(() => {
   wsManager.disconnect();
@@ -418,16 +384,6 @@ onUnmounted(() => {
       gap: 12px;
       font-size: 14px;
       color: #666;
-
-      .ws-status {
-        display: flex;
-        align-items: center;
-
-        .van-tag {
-          cursor: pointer;
-          user-select: none;
-        }
-      }
     }
   }
 
@@ -508,31 +464,6 @@ onUnmounted(() => {
       text-align: center;
       margin-bottom: 20px;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    }
-
-    .control-panel {
-      background: white;
-      border-radius: 12px;
-      padding: 20px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-
-      h3 {
-        margin-top: 0;
-        margin-bottom: 20px;
-        color: #333;
-        border-left: 4px solid #1989fa;
-        padding-left: 12px;
-      }
-
-      .control-buttons {
-        display: flex;
-        justify-content: center;
-        gap: 12px;
-
-        .van-button {
-          min-width: 100px;
-        }
-      }
     }
   }
 }
