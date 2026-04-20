@@ -33,13 +33,13 @@ class WebSocketManager {
   private heartbeatInterval: number = 90; // 默认心跳间隔
   private appId: string = import.meta.env.VITE_APP_ID;
   private deviceUpdateCallbacks: Map<string, DeviceUpdateCallback[]> =
-    new Map();
+    new Map(); // 设备状态更新回调列表
   private deviceOnlineCallbacks: Map<string, DeviceOnlineCallback[]> =
-    new Map();
+    new Map(); // 设备在线状态回调列表
   private messageHandlers: Map<string, (message: WebSocketMessage) => void> =
-    new Map();
+    new Map(); // 消息处理器映射
   private sequenceCallbacks: Map<string, (message: WebSocketMessage) => void> =
-    new Map();
+    new Map(); // sequence 回调映射
 
   // 连接状态变更回调
   public onStatusChange?: (status: WebSocketStatus) => void;
@@ -227,7 +227,7 @@ class WebSocketManager {
           const data = JSON.parse(event.data);
           console.log("收到握手响应:", data);
 
-          // 修改匹配逻辑：通过 sequence 字段匹配
+          // 通过 sequence 字段匹配
           if (data.sequence === sequence) {
             this.ws?.removeEventListener("message", messageHandler);
 
@@ -251,15 +251,9 @@ class WebSocketManager {
 
       this.ws?.addEventListener("message", messageHandler);
       this.ws?.send(JSON.stringify(handshakeMessage));
-
-      // 设置超时
-      setTimeout(() => {
-        this.ws?.removeEventListener("message", messageHandler);
-        console.error("握手认证超时，当前WebSocket状态:", this.ws?.readyState);
-        resolve(false);
-      }, 8000); // 延长超时时间
     });
   }
+
   // 设置心跳
   private setupHeartbeat(interval: number) {
     this.heartbeatInterval = interval;
