@@ -5,10 +5,8 @@
       <div class="device-info">
         <h3 class="device-name">
           {{ device.name }}
-          <van-tag v-if="!device.online" type="danger" size="small"
-            >离线</van-tag
-          >
-          <van-tag v-else type="success" size="small">在线</van-tag>
+          <van-tag v-if="!device.online" type="danger">离线</van-tag>
+          <van-tag v-else type="success">在线</van-tag>
         </h3>
       </div>
     </div>
@@ -50,9 +48,6 @@
       <div v-if="isControlling" class="controlling">
         <van-loading type="spinner" size="20px" />
         <span>控制中...</span>
-      </div>
-      <div v-else-if="lastControlTime" class="last-control">
-        最后控制: {{ formatTime(lastControlTime) }}
       </div>
     </div>
 
@@ -138,12 +133,6 @@ const switches = computed({
   },
 });
 
-// 格式化时间
-const formatTime = (timestamp: number) => {
-  const date = new Date(timestamp);
-  return `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}:${date.getSeconds().toString().padStart(2, "0")}`;
-};
-
 // 处理开关变化
 const handleSwitchChange = async (index: number, value: "on" | "off") => {
   if (!props.device.online) {
@@ -187,7 +176,6 @@ const handleSwitchChange = async (index: number, value: "on" | "off") => {
     );
 
     if (result) {
-      showSuccessToast(`通道${index + 1}已${value === "on" ? "打开" : "关闭"}`);
       lastControlTime.value = Date.now();
 
       // 通知父组件设备已更新
@@ -347,21 +335,30 @@ const initSwitches = () => {
 
 // 注册WebSocket回调
 const handleDeviceUpdate = (deviceId: string, params: any) => {
-  if (deviceId === props.device.deviceid && params.switches) {
-    console.log("收到设备状态更新:", params);
-    localSwitches.value = [...params.switches];
+  if (deviceId === props.device.deviceid) {
+    // 检查 params 格式
+    if (params && params.switches) {
+      // 更新本地状态
+      const newSwitches = [...params.switches];
 
-    // 通知父组件设备已更新
-    const updatedDevice = {
-      ...props.device,
-      params: {
-        ...props.device.params,
-        ...params,
-      },
-    };
-    emit("update:device", updatedDevice);
+      // 检查是否有变化
+      const hasChanges =
+        JSON.stringify(localSwitches.value) !== JSON.stringify(newSwitches);
 
-    showToast("设备状态已更新");
+      if (hasChanges) {
+        localSwitches.value = newSwitches;
+
+        // 通知父组件设备已更新
+        const updatedDevice = {
+          ...props.device,
+          params: {
+            ...props.device.params,
+            ...params,
+          },
+        };
+        emit("update:device", updatedDevice);
+      }
+    }
   }
 };
 
@@ -445,68 +442,6 @@ onUnmounted(() => {
           padding: 2px 6px;
         }
       }
-
-      .device-meta {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-
-        .device-id {
-          font-size: 12px;
-          color: #999;
-        }
-
-        .device-model {
-          font-size: 13px;
-          color: #666;
-          background: #f5f5f5;
-          padding: 2px 6px;
-          border-radius: 4px;
-          display: inline-block;
-        }
-      }
-    }
-
-    .device-signal {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 4px;
-
-      .signal-text {
-        font-size: 12px;
-        color: #666;
-      }
-
-      .signal-bars {
-        display: flex;
-        align-items: flex-end;
-        height: 12px;
-        gap: 2px;
-
-        .signal-bar {
-          width: 3px;
-          background-color: #e0e0e0;
-          border-radius: 1px;
-
-          &.active {
-            background-color: #52c41a;
-          }
-
-          &:nth-child(1) {
-            height: 4px;
-          }
-          &:nth-child(2) {
-            height: 6px;
-          }
-          &:nth-child(3) {
-            height: 8px;
-          }
-          &:nth-child(4) {
-            height: 10px;
-          }
-        }
-      }
     }
   }
 
@@ -561,25 +496,6 @@ onUnmounted(() => {
         .van-switch {
           align-self: flex-start;
         }
-
-        .switch-extra {
-          .extra-item {
-            display: flex;
-            justify-content: space-between;
-            font-size: 11px;
-            color: #999;
-            margin-bottom: 4px;
-
-            .extra-label {
-              flex-shrink: 0;
-            }
-
-            .extra-value {
-              color: #666;
-              font-weight: 500;
-            }
-          }
-        }
       }
     }
   }
@@ -603,18 +519,12 @@ onUnmounted(() => {
         margin: 0;
       }
     }
-
-    .last-control {
-      color: #999;
-      font-size: 12px;
-    }
   }
 
   .device-actions {
     display: flex;
     justify-content: center;
     gap: 12px;
-    margin-top: 20px;
 
     .van-button {
       min-width: 100px;
