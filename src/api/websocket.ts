@@ -29,6 +29,7 @@ class WebSocketManager {
   private ws: WebSocket | null = null;
   private status: WebSocketStatus = WebSocketStatus.DISCONNECTED;
   private pingTimer: number | null = null;
+  private pongTimer: number | null = null; // 新增：等待pong响应的定时器
   private reconnectTimer: number | null = null;
   private heartbeatInterval: number = 90; // 默认心跳间隔
   private appId: string = import.meta.env.VITE_APP_ID;
@@ -40,6 +41,8 @@ class WebSocketManager {
     new Map(); // 消息处理器映射
   private sequenceCallbacks: Map<string, (message: WebSocketMessage) => void> =
     new Map(); // sequence 回调映射
+  private pongTimeoutCount: number = 0;
+  private readonly MAX_PONG_TIMEOUT_COUNT: number = 3; // 最大pong超时次数
 
   // 连接状态变更回调
   public onStatusChange?: (status: WebSocketStatus) => void;
@@ -158,6 +161,7 @@ class WebSocketManager {
       const handshakeSuccess = await this.sendHandshake();
       if (handshakeSuccess) {
         this.updateStatus(WebSocketStatus.CONNECTED);
+        this.resetPongTimeoutCount(); // 重置心跳超时计数
       } else {
         throw new Error("握手认证失败");
       }
@@ -248,9 +252,7 @@ class WebSocketManager {
     this.heartbeatInterval = interval;
 
     // 清除现有的定时器
-    if (this.pingTimer) {
-      clearInterval(this.pingTimer);
-    }
+    this.clearHeartbeatTimers();
 
     // 计算心跳间隔（减去7秒，并添加随机性）
     const heartbeatTime = Math.max((this.heartbeatInterval - 7) * 1000, 10000); // 最小10秒
@@ -259,54 +261,149 @@ class WebSocketManager {
     console.log("设置心跳间隔:", randomTime, "ms");
 
     this.pingTimer = window.setInterval(() => {
-      if (this.ws?.readyState === WebSocket.OPEN) {
-        try {
-          this.ws.send(JSON.stringify({ action: "ping" }));
-          console.log("发送心跳");
-        } catch (error) {
-          console.error("发送心跳失败:", error);
-          this.reconnect();
-        }
-      } else {
-        console.log("WebSocket 未连接，停止心跳");
-        this.cleanup();
-      }
+      this.sendHeartbeat();
     }, randomTime);
+  }
+
+  // 发送心跳
+  private sendHeartbeat() {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      console.log("WebSocket 未连接，停止心跳");
+      this.cleanup();
+      return;
+    }
+
+    try {
+      // 发送字符串 "ping"
+      this.ws.send("ping");
+      console.log("发送心跳: ping");
+
+      // 设置等待pong响应的超时定时器
+      this.setupPongTimeout();
+    } catch (error) {
+      console.error("发送心跳失败:", error);
+      this.handleHeartbeatFailure();
+    }
+  }
+
+  // 设置pong响应超时定时器
+  private setupPongTimeout() {
+    // 清除之前的pong定时器
+    if (this.pongTimer) {
+      clearTimeout(this.pongTimer);
+      this.pongTimer = null;
+    }
+
+    // 设置新的pong超时定时器（心跳间隔的一半，但至少5秒）
+    const pongTimeout = Math.max((this.heartbeatInterval * 1000) / 2, 5000);
+
+    this.pongTimer = window.setTimeout(() => {
+      console.error("心跳响应超时，未收到pong");
+      this.handlePongTimeout();
+    }, pongTimeout);
+  }
+
+  // 处理pong超时
+  private handlePongTimeout() {
+    this.pongTimer = null;
+    this.pongTimeoutCount++;
+
+    console.warn(`心跳超时 ${this.pongTimeoutCount} 次`);
+
+    if (this.pongTimeoutCount >= this.MAX_PONG_TIMEOUT_COUNT) {
+      console.error(`心跳连续超时 ${this.MAX_PONG_TIMEOUT_COUNT} 次，触发重连`);
+      this.handleHeartbeatFailure();
+    }
+  }
+
+  // 处理心跳失败
+  private handleHeartbeatFailure() {
+    console.error("心跳失败，触发重连");
+    this.reconnect();
+  }
+
+  // 重置pong超时计数
+  private resetPongTimeoutCount() {
+    this.pongTimeoutCount = 0;
+  }
+
+  // 清除心跳相关定时器
+  private clearHeartbeatTimers() {
+    if (this.pingTimer) {
+      clearInterval(this.pingTimer);
+      this.pingTimer = null;
+    }
+
+    if (this.pongTimer) {
+      clearTimeout(this.pongTimer);
+      this.pongTimer = null;
+    }
   }
 
   // 处理接收到的消息
   private handleMessage(event: MessageEvent) {
     try {
-      const message: WebSocketMessage = JSON.parse(event.data);
-      console.log("收到WebSocket消息:", message);
+      // 首先检查是否是字符串消息（如pong）
+      if (typeof event.data === "string") {
+        const messageStr = event.data.trim();
 
-      // 先处理 sequence 回调
-      if (message.sequence && this.sequenceCallbacks.has(message.sequence)) {
-        const callback = this.sequenceCallbacks.get(message.sequence);
-        if (callback) {
-          console.log("调用 sequence 回调:", message.sequence);
-          callback(message);
-          this.removeSequenceCallback(message.sequence);
-          return;
+        // 处理心跳响应
+        if (messageStr === "pong") {
+          this.handlePongResponse();
+          return; // 心跳响应不需要进一步处理
         }
-      }
 
-      // 然后处理 action 消息
-      if (message.action) {
-        console.log("处理 action 消息:", message.action);
-        const handler = this.messageHandlers.get(message.action);
-        if (handler) {
-          handler(message);
-        } else if (message.action !== "pong") {
-          console.log("未处理的消息类型:", message.action);
-        }
-      } else if (message.error !== undefined) {
-        console.log("收到无action的响应消息:", message);
+        // 如果不是pong，尝试解析为JSON
+        const message: WebSocketMessage = JSON.parse(event.data);
+        this.processJsonMessage(message);
       } else {
-        console.log("未知格式的消息:", message);
+        console.log("收到非字符串消息:", event.data);
       }
     } catch (error) {
       console.error("解析WebSocket消息失败:", error, event.data);
+    }
+  }
+
+  // 处理pong响应
+  private handlePongResponse() {
+    // 清除pong超时定时器
+    if (this.pongTimer) {
+      clearTimeout(this.pongTimer);
+      this.pongTimer = null;
+    }
+
+    // 重置超时计数
+    this.resetPongTimeoutCount();
+  }
+
+  // 处理JSON消息
+  private processJsonMessage(message: WebSocketMessage) {
+    console.log("收到WebSocket消息:", message);
+
+    // 先处理 sequence 回调
+    if (message.sequence && this.sequenceCallbacks.has(message.sequence)) {
+      const callback = this.sequenceCallbacks.get(message.sequence);
+      if (callback) {
+        console.log("调用 sequence 回调:", message.sequence);
+        callback(message);
+        this.removeSequenceCallback(message.sequence);
+        return;
+      }
+    }
+
+    // 然后处理 action 消息
+    if (message.action) {
+      console.log("处理 action 消息:", message.action);
+      const handler = this.messageHandlers.get(message.action);
+      if (handler) {
+        handler(message);
+      } else {
+        console.log("未处理的消息类型:", message.action);
+      }
+    } else if (message.error !== undefined) {
+      console.log("收到无action的响应消息:", message);
+    } else {
+      console.log("未知格式的消息:", message);
     }
   }
 
@@ -357,10 +454,7 @@ class WebSocketManager {
 
   // 清理资源
   private cleanup() {
-    if (this.pingTimer) {
-      clearInterval(this.pingTimer);
-      this.pingTimer = null;
-    }
+    this.clearHeartbeatTimers();
 
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
@@ -369,6 +463,9 @@ class WebSocketManager {
 
     // 清理所有 sequence 回调
     this.sequenceCallbacks.clear();
+
+    // 重置心跳统计
+    this.resetPongTimeoutCount();
   }
 
   // 安排重连
