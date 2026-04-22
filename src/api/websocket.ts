@@ -142,24 +142,13 @@ class WebSocketManager {
   private setupEventListeners() {
     if (!this.ws) return;
 
-    this.ws.onopen = () => {
-      console.log("WebSocket 连接已建立");
-      this.handleOpen();
-    };
+    this.ws.onopen = this.handleOpen.bind(this);
 
-    this.ws.onmessage = (event) => {
-      this.handleMessage(event);
-    };
+    this.ws.onmessage = this.handleMessage.bind(this);
 
-    this.ws.onerror = (error) => {
-      console.error("WebSocket 错误:", error);
-      this.handleError();
-    };
+    this.ws.onerror = this.handleError.bind(this);
 
-    this.ws.onclose = (event) => {
-      console.log("WebSocket 连接关闭:", event.code, event.reason);
-      this.handleClose(event);
-    };
+    this.ws.onclose = this.handleClose.bind(this);
   }
 
   // 连接建立后的处理
