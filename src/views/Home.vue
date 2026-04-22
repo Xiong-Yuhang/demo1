@@ -5,6 +5,14 @@
       <div class="title">设备列表</div>
       <div class="user-info">
         <span v-if="userName">欢迎，{{ userName }}</span>
+        <van-button
+          type="default"
+          size="mini"
+          @click="showLogoutConfirm"
+          style="margin-left: 10px"
+        >
+          退出
+        </van-button>
       </div>
     </div>
 
@@ -76,7 +84,12 @@ import { getThingList, getFamilyList } from "../api/index";
 import { wsManager, WebSocketStatus } from "../api/websocket";
 import DeviceCard from "../components/DeviceCard.vue";
 import type { ThingListItem, DeviceInfo, FamilyInfo } from "../api/index.d";
-import { showToast, showSuccessToast, showFailToast } from "vant";
+import {
+  showToast,
+  showSuccessToast,
+  showFailToast,
+  showConfirmDialog,
+} from "vant";
 
 const router = useRouter();
 
@@ -87,6 +100,25 @@ const thingListData = ref<any>(null);
 const familyList = ref<FamilyInfo[]>([]);
 const currentFamilyId = ref<string>("");
 const wsStatus = ref<WebSocketStatus>(WebSocketStatus.DISCONNECTED);
+
+// 显示退出确认弹窗
+const showLogoutConfirm = () => {
+  showConfirmDialog({
+    title: "退出登录",
+    message: "确定要退出登录吗？",
+    confirmButtonText: "确定",
+    cancelButtonText: "取消",
+    theme: "round-button",
+  })
+    .then(() => {
+      // 用户点击确定
+      logout();
+    })
+    .catch(() => {
+      // 用户点击取消
+      console.log("取消退出");
+    });
+};
 
 // 从本地存储获取用户名
 const userName = computed(() => {
@@ -344,6 +376,7 @@ onMounted(() => {
   // 检查是否已登录
   const token = localStorage.getItem("access_token");
   if (!token) {
+    showFailToast("未登录，请先登录");
     router.push("/login");
     return;
   }

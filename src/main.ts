@@ -11,6 +11,7 @@ import {
   Switch,
   Tag,
   Empty,
+  Dialog,
 } from "vant";
 import "vant/lib/index.css";
 
@@ -24,4 +25,5 @@ app.use(Toast);
 app.use(Switch);
 app.use(Tag);
 app.use(Empty);
+app.use(Dialog);
 app.mount("#app");
